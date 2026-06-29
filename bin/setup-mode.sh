@@ -26,8 +26,27 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VAULT="$(dirname "$SCRIPT_DIR")"
-WM="$VAULT/scripts/wiki-mode.py"
+# Where the plugin (and this script) live — NOT necessarily the vault.
+PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"
+WM="$PLUGIN_DIR/scripts/wiki-mode.py"
+
+# Resolve the active vault, decoupled from the plugin install location, using
+# the same precedence as scripts/wiki-mode.py: explicit env override, then the
+# nearest .obsidian/ marker walking up from CWD, then CWD. Exporting it keeps
+# the shell folder-seeding and the Python config writes pointed at one vault.
+resolve_vault() {
+  if [ -n "${CLAUDE_OBSIDIAN_VAULT:-}" ]; then
+    printf '%s\n' "$CLAUDE_OBSIDIAN_VAULT"; return
+  fi
+  local d="$PWD"
+  while [ "$d" != "/" ]; do
+    if [ -d "$d/.obsidian" ]; then printf '%s\n' "$d"; return; fi
+    d="$(dirname "$d")"
+  done
+  printf '%s\n' "$PWD"
+}
+VAULT="$(resolve_vault)"
+export CLAUDE_OBSIDIAN_VAULT="$VAULT"
 
 REQUESTED_MODE=""
 NO_SEED=false
