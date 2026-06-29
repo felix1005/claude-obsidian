@@ -37,7 +37,7 @@ Before creating the session note, consult the vault's methodology mode via `pyth
 - **generic**: `wiki/sessions/<date>-<topic>.md` (v1.7 default)
 - **LYT**: `wiki/notes/<date>-<topic>.md` + update the relevant session/journal MOC
 - **PARA**: `wiki/projects/inbox/<date>-<topic>.md` (user reroutes to specific projects)
-- **Zettelkasten**: `wiki/<ID>-session-<topic>.md` (timestamped ID becomes the filename prefix)
+- **Zettelkasten** (v1.10.1+): `wiki/<topic>.md` — clean filename matching the `[[wikilink]]` form; mint the timestamp ID via `python3 scripts/wiki-mode.py id` and store it in the `id:` frontmatter field. (Legacy `wiki/<ID>-<topic>.md` prefix available via `zettelkasten.id_in_filename: true`.)
 
 If `.vault-meta/mode.json` is absent, the router returns mode=generic paths. **Important global rule**: per global CLAUDE.md `/save` convention, sessions for cross-project work should still file to `~/Documents/Obsidian Vault/sessions/` rather than the project's wiki. The mode router applies when filing to the project's own wiki/, not when filing to the global personal vault.
 
