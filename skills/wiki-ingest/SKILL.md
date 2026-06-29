@@ -42,7 +42,7 @@ If `.vault-meta/mode.json` is absent, the router returns mode=generic paths (ide
 
 Mode-specific follow-up:
 - **LYT**: after filing the atomic note, update the relevant MOC (`wiki/mocs/<topic>-moc.md`) to link the new note. If no MOC exists for the topic, create one using `skills/wiki-mode/templates/lyt/moc-template.md`.
-- **Zettelkasten**: filename already includes the timestamp ID. Populate the `id:` frontmatter field to match.
+- **Zettelkasten** (v1.10.1+): the route returns a clean, human-readable filename (e.g. `wiki/Docker Image.md`) that matches the `[[wikilink]]` form. Mint the timestamp ID separately with `python3 scripts/wiki-mode.py id` and store it in the `id:` frontmatter field — do NOT put it in the filename. (Legacy `<id>-<slug>.md` filenames remain available by setting `zettelkasten.id_in_filename: true` in `.vault-meta/mode.json`, but the default keeps wikilinks resolving by filename and avoids phantom/duplicate backlinks.)
 - **PARA**: new ingests land in `wiki/resources/incoming/` by default. Do NOT auto-guess the topic; leave in incoming/ for user review.
 
 ## Concurrency (v1.7+)

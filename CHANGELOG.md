@@ -2,6 +2,27 @@
 
 All notable changes to claude-obsidian. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/).
 
+## [1.10.1] - 2026-06-29 (zettelkasten clean filenames — phantom-backlink fix)
+
+Fixes a Zettelkasten-mode routing defect: `wiki-mode.py route` baked the 20-digit timestamp ID into the *filename* (`wiki/<id>-<slug>.md`) while every page links by clean name (`[[Docker Image]]`). Because the filename never matched the wikilink, links resolved only via `aliases:` indirection, which produced **phantom/duplicate backlinks** and cluttered the file explorer, graph, and quick-switcher with timestamp prefixes. The ID belongs in the `id:` frontmatter field (per the vault convention "timestamped `id`… filenames are unique, wikilinks use `[[Note Name]]`"), not the filename.
+
+### Fixed
+
+- **`scripts/wiki-mode.py`** — the `zettelkasten` branch of `route_path()` now returns a clean, human-readable filename (`wiki/<name>.md`, case + spaces preserved, path-traversal stripped via `safe_name`) that matches the `[[wikilink]]` form. The timestamp ID is no longer in the filename; consumers mint it via `wiki-mode.py id` and store it in `id:` frontmatter.
+
+### Added
+
+- **`zettelkasten.id_in_filename`** config flag (default `false`). Set to `true` in `.vault-meta/mode.json` to restore the legacy `<id>-<slug>.md` filename behavior. Absent flag → default (clean filenames); no migration needed for existing vaults.
+- **`tests/test_wiki_mode.py`** — `test_zettelkasten_routing` rewritten to assert clean default filenames + the legacy opt-in; new `test_zettelkasten_routing_blocks_traversal` confirms `safe_name` still contains `../` for source/entity/concept. Suite green from repo root.
+
+### Changed
+
+- `.claude-plugin/plugin.json` + `.claude-plugin/marketplace.json` version 1.10.0 → 1.10.1.
+
+### Documented
+
+- `skills/wiki-ingest/SKILL.md` and `skills/save/SKILL.md` mode-specific follow-up updated: Zettelkasten files with a clean name and mints the ID into frontmatter, with a note on the `id_in_filename` opt-out.
+
 ## [1.10.0] - 2026-06-29 (network ingest inbox — raw-drop HTTP service)
 
 Adds an inbound network path for depositing sources into a vault's `.raw/` from agentic tools running in other containers/hosts. Implements the "thin HTTP drop service" that `wiki/references/transport-fallback.md` previously only described. Write-only by design: the service lands files in the `.raw/` sandbox and never ingests, mutates `wiki/` pages, or runs any pipeline.

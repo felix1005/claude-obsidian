@@ -122,18 +122,39 @@ def test_para_routing():
     assert_true("para research → resources/<topic>/", "wiki/resources/compounding-vault/" in res, hint=res)
 
 
-# ─── Mode=zettelkasten routing: flat, timestamp-prefixed ────────────────────
+# ─── Mode=zettelkasten routing: flat, clean filename + frontmatter ID ────────
 def test_zettelkasten_routing():
-    cfg = dict(wm.DEFAULT_CONFIG)
+    # Default (v1.10.1+): clean human-readable filename, no timestamp prefix.
+    # The ID lives in the `id:` frontmatter field, minted via `wiki-mode.py id`.
+    cfg = json.loads(json.dumps(wm.DEFAULT_CONFIG))  # deep copy: avoid mutating the module global
     cfg["mode"] = "zettelkasten"
     p = wm.route_path("zettelkasten", "source", "Karpathy essay", cfg)
-    # Format: wiki/<20-digit-timestamp-with-microseconds>-<slug>.md
     assert_true("zettel path starts with wiki/", p.startswith("wiki/"), hint=p)
     assert_true("zettel no subfolders", p.count("/") == 1, hint=p)
-    fname = p.rsplit("/", 1)[1]
+    assert_eq("zettel clean filename (no id prefix)", "wiki/Karpathy essay.md", p)
+    # Case + spaces preserved so the filename matches the [[wikilink]] form.
+    ent = wm.route_path("zettelkasten", "entity", "Andrej Karpathy", cfg)
+    assert_eq("zettel entity preserves case + spaces", "wiki/Andrej Karpathy.md", ent)
+
+    # Legacy opt-in: id_in_filename=True restores the <id>-<slug>.md form.
+    legacy = json.loads(json.dumps(wm.DEFAULT_CONFIG))
+    legacy["mode"] = "zettelkasten"
+    legacy["config"]["zettelkasten"]["id_in_filename"] = True
+    lp = wm.route_path("zettelkasten", "source", "Karpathy essay", legacy)
+    fname = lp.rsplit("/", 1)[1]
     parts = fname.split("-", 1)
-    # v1.8.1 fix: IDs are 20 digits (YYYYMMDDHHMMSSffffff) for collision resistance
-    assert_true("zettel ID is 20 digits", parts[0].isdigit() and len(parts[0]) == 20, hint=fname)
+    # IDs are 20 digits (YYYYMMDDHHMMSSffffff) for collision resistance.
+    assert_true("legacy zettel ID is 20 digits", parts[0].isdigit() and len(parts[0]) == 20, hint=fname)
+
+
+# ─── Zettelkasten clean routing still blocks path traversal ─────────────────
+def test_zettelkasten_routing_blocks_traversal():
+    cfg = json.loads(json.dumps(wm.DEFAULT_CONFIG))
+    cfg["mode"] = "zettelkasten"
+    for content_type in ("source", "entity", "concept"):
+        p = wm.route_path("zettelkasten", content_type, "../../etc/passwd", cfg)
+        assert_true(f"zettel {content_type} stays under wiki/",
+                    p.startswith("wiki/") and ".." not in p, hint=p)
 
 
 # ─── Zettel ID format ───────────────────────────────────────────────────────
@@ -327,6 +348,7 @@ def main():
     test_lyt_routing()
     test_para_routing()
     test_zettelkasten_routing()
+    test_zettelkasten_routing_blocks_traversal()
     test_mint_zettel_id_format()
     test_mint_zettel_id_collision_resistance()
     test_slugify()

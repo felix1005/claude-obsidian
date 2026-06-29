@@ -93,6 +93,13 @@ DEFAULT_CONFIG = {
             "id_format": "YYYYMMDDHHMMSSffffff",
             "no_folders": True,
             "root_folder": "wiki/",
+            # When False (default, v1.10.1+), the filename is the clean human
+            # name and the timestamp ID lives in the `id:` frontmatter field.
+            # When True, the legacy `<id>-<slug>.md` filename is used. Clean
+            # filenames keep Obsidian `[[wikilinks]]` resolving by filename
+            # instead of via alias indirection (which produced phantom /
+            # duplicate backlinks when filename != link target).
+            "id_in_filename": False,
         },
         "generic": {
             "sources_folder": "wiki/sources/",
@@ -214,8 +221,15 @@ def route_path(mode, content_type, name, cfg):
 
     if mode == "zettelkasten":
         z = cfg["config"]["zettelkasten"]
-        zid = mint_zettel_id()
-        return z["root_folder"] + f"{zid}-{slug}.md"
+        if z.get("id_in_filename", False):
+            # Legacy (<= v1.8.1) behavior: timestamp ID baked into the filename.
+            return z["root_folder"] + f"{mint_zettel_id()}-{slug}.md"
+        # Default (v1.10.1+): clean, human-readable filename that matches the
+        # [[wikilink]] form (case + spaces preserved, path-traversal stripped).
+        # The timestamp ID belongs in the `id:` frontmatter field — consumers
+        # mint it via `wiki-mode.py id`. This avoids the alias indirection that
+        # produced phantom / duplicate backlinks when filename != link target.
+        return z["root_folder"] + raw + ".md"
 
     raise SystemExit(3)
 
