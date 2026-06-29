@@ -2,6 +2,23 @@
 
 All notable changes to claude-obsidian. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/).
 
+## [1.10.0] - 2026-06-29 (network ingest inbox — raw-drop HTTP service)
+
+Adds an inbound network path for depositing sources into a vault's `.raw/` from agentic tools running in other containers/hosts. Implements the "thin HTTP drop service" that `wiki/references/transport-fallback.md` previously only described. Write-only by design: the service lands files in the `.raw/` sandbox and never ingests, mutates `wiki/` pages, or runs any pipeline.
+
+### Added
+
+- **`scripts/raw-drop-server.py`** — dependency-free (stdlib `http.server`) authenticated HTTP service. `POST /drop` writes one finding into `.raw/`; `GET /pending` lists un-ingested drops (diffed against `.raw/.manifest.json`); `GET /health` for liveness. Bearer-token auth (constant-time compare), path-traversal-proof filename sanitization, an extension allowlist, a per-drop size cap, atomic writes, and a JSON audit log at `.vault-meta/raw-drop.log`. Text drops get an invisible `raw-drop-provenance` HTML-comment header (agent, source_url, tags, drop time). Vault resolved from `RAW_DROP_VAULT` / `CLAUDE_OBSIDIAN_VAULT` / CWD.
+- **`tests/test_raw_drop_server.sh`** — hermetic smoke suite (throwaway temp vault, ephemeral port): auth enforcement, path-traversal containment, provenance header, the pending list, and the extension allowlist. Wired into `make test` (now 10 suites) + `make test-rawdrop`.
+
+### Changed
+
+- `.claude-plugin/plugin.json` + `marketplace.json` version 1.9.2 → 1.10.0.
+
+### Documented
+
+- `wiki/references/transport-fallback.md` gains an "Inbound drops (network ingestion)" section distinguishing the inbound drop path from the outbound read/write transport precedence chain.
+
 ## [1.9.2] - 2026-05-27 (prompt-cache hardening + path-handling robustness)
 
 Ports Anthropic prompt-caching best practices into the **one** place the plugin calls the Anthropic API directly: tier-1 contextual-prefix generation in `scripts/contextual-prefix.py`. Verified by full-repo sweep that `cache_control` and the Anthropic API surface exist nowhere else (incl. `claude-canvas/`). No change to retrieval output — API payload shape + observability only.

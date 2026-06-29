@@ -99,6 +99,20 @@ The detection script (`scripts/detect-transport.sh`, v1.8.2+) parses the existin
 
 To disable the override later, edit the file and either set `"manual_override": false` or delete the field; the next detection pass will recompute `preferred` from auto-detection.
 
+## Inbound drops (network ingestion)
+
+The four-rung chain above governs how *this* Claude session reads and writes the vault (the **outbound** direction). A separate concern is letting **external** agentic tools — e.g. scouts running in other containers with no shared filesystem — deposit sources *into* the vault over the network.
+
+This is **not** a transport in the precedence sense, and must not be confused with `mcp-obsidian` / `mcpvault`: those are client transports *this* session consumes, not endpoints other tools push to. For the inbound case use:
+
+**`scripts/raw-drop-server.py`** — an authenticated, dependency-free HTTP service:
+
+```bash
+RAW_DROP_TOKEN="$(openssl rand -hex 32)" python3 scripts/raw-drop-server.py
+```
+
+Remote agents `POST /drop` with the bearer token and the finding lands in `.raw/` (with a provenance header), ready for the next `ingest`. It is **write-only** — it never ingests or mutates `wiki/`. `GET /pending` reports un-ingested drops. See the script docstring for the full client recipe and config.
+
 ## See also
 
 - Detection script: [`scripts/detect-transport.sh`](../../scripts/detect-transport.sh)
