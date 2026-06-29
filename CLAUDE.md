@@ -4,7 +4,47 @@ This folder is both a Claude Code plugin and an Obsidian vault.
 
 **Plugin name:** `claude-obsidian` (v1.7+ "Compound Vault" — see [docs/compound-vault-guide.md](docs/compound-vault-guide.md); v1.8+ adds methodology modes — see [docs/methodology-modes-guide.md](docs/methodology-modes-guide.md))
 **Skills:** `/wiki`, `/wiki-ingest`, `/wiki-query`, `/wiki-lint`, `/wiki-cli` (v1.7), `/wiki-retrieve` (v1.7, opt-in), `/wiki-mode` (v1.8)
-**Vault path:** This directory (open in Obsidian directly)
+**Vault path:** the active vault under `/vaults/<name>` (open in Obsidian directly). The resolver locates it via its `.obsidian/` marker (walking up from CWD), independent of the plugin install — **distinct from the plugin at `/opt/claude-obsidian`**. See the Maintenance Policy below for the split-install layout. (In a classic unified install where the plugin lives inside the vault, "the vault" is simply this directory.)
+
+## Maintenance Policy — Patching the Plugin (split-install deployment)
+
+This fork is deployed as a **split install**: the plugin lives at `/opt/claude-obsidian`
+(shared, root-owned), vaults live at `/vaults/<name>`, and the container image is
+built from `/bootstrap/Dockerfile`, which **clones the plugin from this fork's `main`**
+(`https://github.com/felix1005/claude-obsidian`; upstream:
+`https://github.com/AgriciDaniel/claude-obsidian`).
+
+**Any future fix to the plugin MUST follow all three steps**, in this order, to
+maximize portability:
+
+1. **Patch the live install** at `/opt/claude-obsidian` so the *running* container
+   benefits immediately. Needs root: use `sudo` (present in rebuilt images), or
+   from the host `docker exec -u root <container> …`. Preferred — pull the fix
+   straight from the fork rather than hand-editing:
+   ```bash
+   git config --global --add safe.directory /opt/claude-obsidian
+   git -C /opt/claude-obsidian fetch https://github.com/felix1005/claude-obsidian main
+   git -C /opt/claude-obsidian checkout FETCH_HEAD -- <changed files>
+   ```
+2. **Raise a PR on the fork and merge it** (`gh`, branch → `felix1005/.../main`).
+   PRs stay on the **fork only** — do NOT open PRs against the upstream
+   `AgriciDaniel` repo. Upstream is referenced for provenance/rebasing only; this
+   fork's `main` is the source of truth the deployment builds from.
+3. **Confirm the next image build catches it.** `/bootstrap/Dockerfile` re-clones
+   from the fork on every build, so after `docker build -t claude-obsidian /bootstrap`
+   + container recreate, fresh containers ship the patch automatically. Pin
+   `--branch <tag>` in the Dockerfile for reproducible builds once a tag is cut.
+
+Note on `~/.claude/CLAUDE.md`: `entrypoint.sh` appends this file to the user-level
+`CLAUDE.md` **once per `~/.claude` volume** (guarded by
+`~/.claude/.claude-obsidian-installed`). Existing deployments keep their current
+`CLAUDE.md`; only a **fresh volume** re-imports this content from the fork — which
+is why this policy lives here, in the fork.
+
+Rationale: step 1 unblocks the current session, step 2 makes the fix durable and
+reviewable on the fork, step 3 makes it portable across every future rebuild and
+fresh deployment. Skipping step 1 leaves the live container broken; skipping
+steps 2–3 means the fix is silently wiped on the next rebuild.
 
 ## What This Vault Is For
 
