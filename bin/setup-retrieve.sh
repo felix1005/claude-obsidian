@@ -39,7 +39,29 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VAULT="$(dirname "$SCRIPT_DIR")"
+# Where the pipeline scripts live (the plugin install root). On a split install
+# this is NOT the vault — keep them separate.
+SCRIPTS_ROOT="$(dirname "$SCRIPT_DIR")"
+
+# Resolve the ACTIVE vault root, decoupled from where the plugin is installed.
+# Mirrors scripts/wiki-mode.py resolve_vault_root(): explicit env override →
+# nearest .obsidian/ ancestor of CWD → CWD. Without this, a split install would
+# provision .vault-meta/ next to the (often root-owned) plugin and index the
+# plugin's bundled demo wiki/ instead of the user's vault.
+resolve_vault() {
+  if [ -n "${CLAUDE_OBSIDIAN_VAULT:-}" ]; then
+    ( cd "$CLAUDE_OBSIDIAN_VAULT" 2>/dev/null && pwd ) && return 0
+  fi
+  local d; d="$(pwd)"
+  while [ "$d" != "/" ]; do
+    if [ -d "$d/.obsidian" ]; then printf '%s\n' "$d"; return 0; fi
+    d="$(dirname "$d")"
+  done
+  pwd
+}
+VAULT="$(resolve_vault)"
+# Make the Python helpers resolve the SAME root deterministically.
+export CLAUDE_OBSIDIAN_VAULT="$VAULT"
 META="$VAULT/.vault-meta"
 
 NO_LLM=false
@@ -72,10 +94,10 @@ say ""
 
 # ── 1. Sanity check ──────────────────────────────────────────────────────────
 REQUIRED=(
-  "$VAULT/scripts/contextual-prefix.py"
-  "$VAULT/scripts/bm25-index.py"
-  "$VAULT/scripts/rerank.py"
-  "$VAULT/scripts/retrieve.py"
+  "$SCRIPTS_ROOT/scripts/contextual-prefix.py"
+  "$SCRIPTS_ROOT/scripts/bm25-index.py"
+  "$SCRIPTS_ROOT/scripts/rerank.py"
+  "$SCRIPTS_ROOT/scripts/retrieve.py"
 )
 missing=0
 for f in "${REQUIRED[@]}"; do
@@ -194,7 +216,7 @@ $REBUILD && ARGS+=("--rebuild")
 # Disable set -e for the call so we can inspect the exit code and offer a
 # concrete recovery hint instead of aborting with a bare trace.
 set +e
-python3 "$VAULT/scripts/contextual-prefix.py" "${ARGS[@]}"
+python3 "$SCRIPTS_ROOT/scripts/contextual-prefix.py" "${ARGS[@]}"
 STAGE1_RC=$?
 set -e
 if [ "$STAGE1_RC" -ne 0 ]; then
@@ -210,12 +232,12 @@ fi
 # ── 6. Build BM25 index ──────────────────────────────────────────────────────
 say ""
 say "═══ Stage 2/2: BM25 index build ═══"
-python3 "$VAULT/scripts/bm25-index.py" build
+python3 "$SCRIPTS_ROOT/scripts/bm25-index.py" build
 
 # ── 7. Smoke-test retrieve.py ────────────────────────────────────────────────
 say ""
 say "═══ Smoke test ═══"
-SMOKE_OUT="$(python3 "$VAULT/scripts/retrieve.py" "wiki" --top 1 2>/dev/null || echo '{}')"
+SMOKE_OUT="$(python3 "$SCRIPTS_ROOT/scripts/retrieve.py" "wiki" --top 1 2>/dev/null || echo '{}')"
 if echo "$SMOKE_OUT" | grep -q '"candidates":'; then
   say "✓ retrieve.py returns valid JSON"
 else

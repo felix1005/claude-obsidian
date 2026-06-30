@@ -2,6 +2,20 @@
 
 All notable changes to claude-obsidian. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/).
 
+## [1.10.2] - 2026-06-30 (retrieve pipeline — split-install vault resolution)
+
+Fixes a split-install defect in the hybrid-retrieval pipeline. `contextual-prefix.py`, `bm25-index.py`, `rerank.py`, and `retrieve.py` resolved the vault root as `Path(__file__).parent.parent` — the same assumption `wiki-mode.py` already abandoned. On a split install (plugin in `/opt/claude-obsidian`, vault elsewhere) that meant `bin/setup-retrieve.sh` would chunk the plugin's **bundled demo `wiki/`** and write `.vault-meta/chunks/` + `bm25/index.json` next to the (root-owned) plugin, never touching the user's vault — so enabling retrieval indexed the wrong content and could fail on the read-only install.
+
+### Fixed
+
+- **`scripts/contextual-prefix.py`, `bm25-index.py`, `rerank.py`, `retrieve.py`** — adopt the canonical `resolve_vault_root()` (env `CLAUDE_OBSIDIAN_VAULT` → nearest `.obsidian/` ancestor of CWD → CWD → legacy `<script>/..`), matching `scripts/wiki-mode.py`. `retrieve.py` keeps sibling-helper loading relative to `__file__` (helpers are co-located with the script) while data paths follow the resolved vault.
+- **`bin/setup-retrieve.sh`** — split `SCRIPTS_ROOT` (plugin install, for the `.py` paths) from `VAULT` (resolved active vault, for `.vault-meta/` + the `wiki/` it chunks); exports `CLAUDE_OBSIDIAN_VAULT` so the Python helpers resolve the same root deterministically.
+
+### Changed
+
+- `tests/test_retrieve.py` — sandbox subprocess invocations now pass `cwd=str(sandbox)` so the runtime-resolved vault root points at the test sandbox (the old tests relied on the now-removed script-location coupling).
+- `.claude-plugin/plugin.json` + `.claude-plugin/marketplace.json` version 1.10.1 → 1.10.2.
+
 ## [1.10.1] - 2026-06-29 (zettelkasten clean filenames — phantom-backlink fix)
 
 Fixes a Zettelkasten-mode routing defect: `wiki-mode.py route` baked the 20-digit timestamp ID into the *filename* (`wiki/<id>-<slug>.md`) while every page links by clean name (`[[Docker Image]]`). Because the filename never matched the wikilink, links resolved only via `aliases:` indirection, which produced **phantom/duplicate backlinks** and cluttered the file explorer, graph, and quick-switcher with timestamp prefixes. The ID belongs in the `id:` frontmatter field (per the vault convention "timestamped `id`… filenames are unique, wikilinks use `[[Note Name]]`"), not the filename.

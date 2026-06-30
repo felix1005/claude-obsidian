@@ -204,18 +204,18 @@ def test_end_to_end_with_synthetic_chunks():
             json.dumps(chunk("c-000001", 0, "compounding wiki vault pattern by karpathy")))
         (chunks_dir / "c-000002" / "chunk-000.json").write_text(
             json.dumps(chunk("c-000002", 0, "obsidian cli transport detection")))
-        # Build index via subprocess (uses the sandbox's META_DIR? no — it uses the
-        # script's hard-coded paths relative to its location. Since we copied the
-        # script into sandbox/scripts/, VAULT_ROOT will compute to `sandbox`.)
+        # Build index via subprocess. Vault root is resolved at runtime
+        # (resolve_vault_root): we run with cwd=sandbox and no .obsidian marker,
+        # so it falls back to CWD == sandbox, where .vault-meta/ lives.
         result = subprocess.run(
             [sys.executable, str(sandbox / "scripts" / "bm25-index.py"), "build"],
-            capture_output=True, text=True, timeout=10)
+            cwd=str(sandbox), capture_output=True, text=True, timeout=10)
         assert_eq("bm25 build rc=0", 0, result.returncode)
         # Run retrieve
         result = subprocess.run(
             [sys.executable, str(sandbox / "scripts" / "retrieve.py"),
              "karpathy wiki", "--top", "2", "--no-rerank"],
-            capture_output=True, text=True, timeout=10)
+            cwd=str(sandbox), capture_output=True, text=True, timeout=10)
         assert_eq("retrieve rc=0", 0, result.returncode)
         out = json.loads(result.stdout)
         assert_eq("retrieve.strategy is bm25-only", "bm25-only", out["strategy"])
@@ -256,12 +256,12 @@ def test_explain_flag_adds_diagnostics_block():
         }))
         # Build index
         subprocess.run([sys.executable, str(sandbox / "scripts" / "bm25-index.py"), "build"],
-                       capture_output=True, timeout=10, check=True)
+                       cwd=str(sandbox), capture_output=True, timeout=10, check=True)
         # Run with --explain --no-rerank
         result = subprocess.run(
             [sys.executable, str(sandbox / "scripts" / "retrieve.py"),
              "hybrid", "--top", "1", "--no-rerank", "--explain"],
-            capture_output=True, text=True, timeout=10)
+            cwd=str(sandbox), capture_output=True, text=True, timeout=10)
         assert_eq("retrieve --explain --no-rerank rc=0", 0, result.returncode)
         out = json.loads(result.stdout)
         assert_true("--explain produces 'explain' key",
@@ -300,11 +300,11 @@ def test_no_rerank_flag_strategy_bm25_only():
             "created_at": "2026-05-17T00:00:00Z",
         }))
         subprocess.run([sys.executable, str(sandbox / "scripts" / "bm25-index.py"), "build"],
-                       capture_output=True, timeout=10, check=True)
+                       cwd=str(sandbox), capture_output=True, timeout=10, check=True)
         result = subprocess.run(
             [sys.executable, str(sandbox / "scripts" / "retrieve.py"),
              "transport", "--top", "1", "--no-rerank"],
-            capture_output=True, text=True, timeout=10)
+            cwd=str(sandbox), capture_output=True, text=True, timeout=10)
         assert_eq("retrieve --no-rerank rc=0", 0, result.returncode)
         out = json.loads(result.stdout)
         assert_eq("--no-rerank sets strategy='bm25-only'", "bm25-only", out.get("strategy"))

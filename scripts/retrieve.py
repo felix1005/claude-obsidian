@@ -52,11 +52,42 @@ Exit codes:
 import argparse
 import importlib.util
 import json
+import os
 import sys
 from pathlib import Path
 
-VAULT_ROOT = Path(__file__).resolve().parent.parent
-SCRIPTS_DIR = VAULT_ROOT / "scripts"
+
+def resolve_vault_root():
+    """Locate the vault root, decoupled from where this script is installed.
+
+    Historically this was ``Path(__file__).parent.parent``, which assumed the
+    plugin lived *inside* the vault. That breaks "split" installs where the
+    plugin is shared (e.g. /opt/claude-obsidian, often root-owned) and vaults
+    live elsewhere — the script would read ``.vault-meta/`` next to its own
+    code instead of in the active vault.
+
+    Resolution order, most explicit first:
+      1. $CLAUDE_OBSIDIAN_VAULT                    — explicit override (set by bootstrap)
+      2. nearest ancestor of CWD with .obsidian/   — canonical Obsidian marker
+      3. CWD                                       — not-yet-initialized vault
+      4. <script>/..                               — legacy unified-layout fallback
+    """
+    env = os.environ.get("CLAUDE_OBSIDIAN_VAULT")
+    if env:
+        return Path(env).expanduser().resolve()
+    cwd = Path.cwd().resolve()
+    for d in (cwd, *cwd.parents):
+        if (d / ".obsidian").is_dir():
+            return d
+    legacy = Path(__file__).resolve().parent.parent
+    return cwd if cwd != legacy else legacy
+
+
+# Sibling helpers (bm25-index.py, rerank.py) live next to THIS script, so they
+# resolve from __file__ — not from the vault root, which may be elsewhere on a
+# split install. Data (chunks/index) lives under the active vault.
+SCRIPTS_DIR = Path(__file__).resolve().parent
+VAULT_ROOT = resolve_vault_root()
 META_DIR = VAULT_ROOT / ".vault-meta"
 CHUNKS_DIR = META_DIR / "chunks"
 BM25_INDEX = META_DIR / "bm25" / "index.json"
